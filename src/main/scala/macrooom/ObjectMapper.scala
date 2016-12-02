@@ -15,9 +15,10 @@ object ObjectMapper {
 
     if (distSymbol.isJava) {
       // In the case of Java, use accessors to copy values
-      val sets = getSetters[B](c)().map { setter =>
-        val getterTermName = convertToGetterTermName[A](c)(setter.name.decodedName.toString)
-        q"${setter.name.toTermName}(${source}.${getterTermName})"
+      val sets = getSetters[B](c)().flatMap { setter =>
+        convertToGetterTermName[A](c)(setter.name.decodedName.toString) map { getterTermName =>
+          q"${setter.name.toTermName}(${source}.${getterTermName})"
+        }
       }
       c.Expr[B](q"""
         new ${distSymbol}() {
@@ -27,7 +28,9 @@ object ObjectMapper {
     } else {
       // In the case of Scala, use the constructor to copy values
       val params = getConstructorParams[B](c)().map { param =>
-        val getterTermName = convertToGetterTermName[A](c)(param.name.decodedName.toString)
+        val getterTermName = convertToGetterTermName[A](c)(param.name.decodedName.toString).getOrElse {
+          c.abort(c.enclosingPosition, s"${srcSymbol.name} does not have enough method to create ${distSymbol.name}")
+        }
         q"${param.name.toTermName} = ${source}.${getterTermName}"
       }
       c.Expr[B](q"""
@@ -41,21 +44,24 @@ object ObjectMapper {
   private def convertToGetterTermName[A: c.WeakTypeTag](c: Context)(name: String) = {
     import c.universe._
     val rawName = if (name.startsWith("set")) Character.toLowerCase(name.charAt(3)) + name.substring(4) else name
-    if (c.weakTypeOf[A].typeSymbol.isJava) {
-      TermName("get" + rawName.capitalize)
+    val getterName = if (c.weakTypeOf[A].typeSymbol.isJava) "get" + rawName.capitalize else rawName
+
+    val decls = weakTypeTag[A].tpe.decls
+    // if target class does not have field or method, return None
+    if (decls.exists(d => d.isPublic && d.name.decodedName.toString == getterName)) {
+      Some(TermName(getterName))
     } else {
-      TermName(rawName)
+      None
     }
   }
 
   private def getSetters[A: c.WeakTypeTag](c: Context)() = {
     import c.universe._
     val decls = weakTypeTag[A].tpe.decls
-    val setters = decls.collect {
+    decls.collect {
       case m: MethodSymbol if m.name.decodedName.toString.matches("^set[A-Z].+") &&
-        m.paramLists.head.length == 1 => m
+        m.paramLists.head.length == 1 && m.isPublic => m
     }
-    setters
   }
 
   private def getConstructorParams[A: c.WeakTypeTag](c: Context)() = {

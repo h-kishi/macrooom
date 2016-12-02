@@ -3,6 +3,7 @@ package macrooom;
 public class JavaClass {
     private int id;
     private String name;
+    private int age;
 
     public JavaClass(int id, String name) {
         this.name = name;
@@ -24,5 +25,13 @@ public class JavaClass {
 
     public String getName() {
         return name;
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
+
+    public int getAge() {
+        return age;
     }
 }
