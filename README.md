@@ -19,7 +19,7 @@ Just add Macrooom to your sbt build settings:
 
 ```
 libraryDependencies ++= Seq(
-  "com.github.h-kishi" %% "macrooom" % "0.1.0"
+  "com.github.h-kishi" %% "macrooom" % "0.2.0"
 )
 ```
 
